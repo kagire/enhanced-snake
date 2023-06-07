@@ -7,9 +7,11 @@ buildscript {
         maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
         google()
     }
-    dependencies {
-        'org.projectlombok:lombok:1.18.28'
-    }
+    dependencies {}
+}
+
+plugins {
+    id("io.freefair.lombok") version "8.0.1"
 }
 
 allprojects {

@@ -1,4 +1,4 @@
-package com.kagire.snake.entity;
+package com.kagire.entity.enumeration;
 
 public enum Direction {
     RIGHT, LEFT, UP, DOWN

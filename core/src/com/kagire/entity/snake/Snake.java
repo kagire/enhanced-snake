@@ -1,5 +1,6 @@
 package com.kagire.entity.snake;
 
+import com.kagire.entity.Coordinates2D;
 import com.kagire.entity.enumeration.Direction;
 import lombok.Getter;
 
@@ -12,6 +13,7 @@ public class Snake {
 
     private final SnakeCell headCell;
     private final List<SnakeCell> cells;
+    private int nutrition = 0;
 
     public Snake(int x, int y) {
         this.cells = new ArrayList<>();
@@ -34,33 +36,49 @@ public class Snake {
             if (cell.getX() != cell.getNext().getPreviousX()) cell.updateX(cell.getNext().getPreviousX());
             if (cell.getY() != cell.getNext().getPreviousY()) cell.updateY(cell.getNext().getPreviousY());
         }
+        if (nutrition > 0) enlargeSnake();
     }
 
-    public boolean isHeadIn(int x, int y) {
-        return headCell.getX() == x && headCell.getY() == y;
-    }
-
-    public void enlargeSnake() {
-        var previousCell = cells.isEmpty() ? headCell : cells.get(cells.size() - 1);
-        addCell(previousCell.getPreviousX(), previousCell.getPreviousY());
+    public void feedSnake(int feedAmount) {
+        nutrition += feedAmount;
     }
 
     public void executeOnEachCell(Consumer<SnakeCell> consumer, boolean startFromHead) {
-        var cell = headCell;
         if (startFromHead) {
+            var cell = firstCell();
             while (cell != null) {
                 consumer.accept(cell);
                 cell = cell.getPrevious();
             }
         } else {
-            while (cell.getPrevious() != null) {
-                cell = cell.getPrevious();
-            }
+            var cell = lastCell();
             while (cell != null) {
                 consumer.accept(cell);
                 cell = cell.getNext();
             }
         }
+    }
+
+    public boolean isHeadIn(List<Coordinates2D> coordinates) {
+        return coordinates.stream().anyMatch(c -> c.x() == headCell.getX() && c.y() == headCell.getY());
+    }
+
+    private SnakeCell firstCell() {
+        return headCell;
+    }
+
+    private SnakeCell lastCell() {
+        var cell = firstCell();
+        while (cell.getPrevious() != null) {
+            cell = cell.getPrevious();
+        }
+        return cell;
+    }
+
+    private void enlargeSnake() {
+        var cell = lastCell();
+        addCell(cell.getPreviousX(), cell.getPreviousY());
+        nutrition--;
     }
 
     private void addCell(int x, int y) {

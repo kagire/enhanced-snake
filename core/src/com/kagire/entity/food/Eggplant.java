@@ -4,11 +4,11 @@ import com.kagire.entity.Coordinates2D;
 
 import java.util.List;
 
-public class Apple extends Food {
+public class Eggplant extends Food {
 
-    private final static int NUTRITION_VALUE = 1;
+    private final static int NUTRITION_VALUE = 2;
 
-    public Apple(int x, int y) {
+    public Eggplant(int x, int y) {
         super(x, y);
     }
 
@@ -19,6 +19,6 @@ public class Apple extends Food {
 
     @Override
     protected List<Coordinates2D> initOccupiedPlace() {
-        return List.of(Coordinates2D.of(0, 0));
+        return List.of(Coordinates2D.of(0, 0), Coordinates2D.of(0, -1));
     }
 }

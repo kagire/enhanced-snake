@@ -1,7 +1,10 @@
 package com.kagire.game;
 
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
+import com.kagire.SnakeRunner;
 import com.kagire.entity.Coordinates2D;
+import com.kagire.entity.settings.GameSettings;
 import com.kagire.entity.snake.Snake;
 
 import java.util.ArrayList;
@@ -25,5 +28,9 @@ public class SnakeGameProcessor {
                 .stream()
                 .filter(c -> !snake.getHeadCell().compareXY(c) && snake.getCells().stream().noneMatch(sc -> sc.compareXY(c)))
                 .collect(Collectors.toList());
+    }
+
+    public static GameSettings getSettings(Game game) {
+        return ((SnakeRunner) game).settings;
     }
 }

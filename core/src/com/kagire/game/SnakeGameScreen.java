@@ -20,17 +20,17 @@ import com.kagire.entity.enumeration.LayerName;
 import com.kagire.entity.enumeration.TileType;
 import com.kagire.entity.food.Apple;
 import com.kagire.entity.food.Food;
+import com.kagire.entity.food.FoodProcessor;
+import com.kagire.entity.settings.GameSettings;
 import com.kagire.entity.snake.Snake;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static com.kagire.entity.enumeration.LayerName.*;
 import static com.kagire.entity.enumeration.TileType.*;
-import static com.kagire.game.SnakeGameProcessor.getUnoccupiedCoordinates;
 
 public class SnakeGameScreen implements Screen {
 
@@ -57,8 +57,8 @@ public class SnakeGameScreen implements Screen {
     public SnakeGameScreen(Game gameRunner) {
         this.gameRunner = gameRunner;
         this.camera = new OrthographicCamera();
-        this.camera.setToOrtho(false, 10,  10);
-        this.viewport = new FitViewport(10, 10, camera);
+        this.camera.setToOrtho(false, getGameWidth(), getGameHeight());
+        this.viewport = new FitViewport(getGameWidth(), getGameHeight(), camera);
 
         this.graphicsTray = new GraphicsTray();
         this.initializeTileMap();
@@ -66,11 +66,13 @@ public class SnakeGameScreen implements Screen {
         this.renderer.setView(camera);
 
         this.snake = new Snake(0, 0);
-        this.unoccupiedCoordinates = getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER));
-        var foodCoordinates = unoccupiedCoordinates.get(ThreadLocalRandom.current().nextInt(0, unoccupiedCoordinates.size()));
-        this.food = new Apple(foodCoordinates.x(), foodCoordinates.y());
-        this.addTile(APPLE, FOOD_LAYER, food.x, food.y);
-        this.addTile(SNAKE, SNAKE_LAYER, 0, 0);
+        this.unoccupiedCoordinates = SnakeGameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER));
+        var foodCoordinates = FoodProcessor.randomAvailableCoordinate(unoccupiedCoordinates, Apple.class);
+        if (foodCoordinates != null) {
+            this.food = FoodProcessor.randomFood(foodCoordinates.x(), foodCoordinates.y());
+            this.addTile(APPLE, FOOD_LAYER, foodCoordinates.x(), foodCoordinates.y());
+        }
+        this.addTile(SNAKE, SNAKE_LAYER, snake.getHeadCell().getX(), snake.getHeadCell().getX());
     }
 
     @Override
@@ -91,8 +93,8 @@ public class SnakeGameScreen implements Screen {
 
         if (isMoveAvailable) {
             moveSnake();
-            if (snake.isHeadIn(food.x, food.y)){
-                snake.enlargeSnake();
+            if (snake.isHeadIn(food.coordinates)){
+                snake.feedSnake(food.nutritionValue());
                 moveFood();
             }
             moveDirection = null;
@@ -107,7 +109,7 @@ public class SnakeGameScreen implements Screen {
                 public void run() {
                     isMoveAvailable = true;
                 }
-            }, 300);
+            }, 1000 / getSettings().gameRules.gameSpeed);
         }
         isMoveAvailable = false;
     }
@@ -120,15 +122,15 @@ public class SnakeGameScreen implements Screen {
     }
 
     private void moveFood() {
-        removeTile(FOOD_LAYER, food.x, food.y);
-        unoccupiedCoordinates = getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER));
-        if (!unoccupiedCoordinates.isEmpty()) {
-            var foodCoordinates = unoccupiedCoordinates.get(ThreadLocalRandom.current().nextInt(0, unoccupiedCoordinates.size()));
-            removeTile(FOOD_LAYER, food.x, food.y);
-            food = new Apple(foodCoordinates.x(), foodCoordinates.y());
-            addTile(APPLE, FOOD_LAYER, food.x, food.y);
+        food.coordinates.forEach(coordinate -> removeTile(FOOD_LAYER, coordinate.x(), coordinate.y()));
+        unoccupiedCoordinates = SnakeGameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER), unoccupiedCoordinates);
+        var foodCoordinates = FoodProcessor.randomAvailableCoordinate(unoccupiedCoordinates, Apple.class);
+        if (!unoccupiedCoordinates.isEmpty() && foodCoordinates != null) {
+            food = FoodProcessor.randomFood(foodCoordinates.x(), foodCoordinates.y());
+            addTile(APPLE, FOOD_LAYER, foodCoordinates.x(), foodCoordinates.y());
         } else {
             // TODO: endgame
+            System.out.println("endgame");
         }
         addTile(SNAKE, SNAKE_LAYER, snake.getHeadCell().getX(), snake.getHeadCell().getY());
     }
@@ -136,16 +138,16 @@ public class SnakeGameScreen implements Screen {
     private void initializeTileMap() {
         map = new TiledMap();
 
-        TiledMapTileLayer gameLayer = this.initializeLayer(GAME_LAYER, 10, 10);
-        for(int x = 0; x < 10; x++) {
-            for(int y = 0; y < 10; y++) {
+        TiledMapTileLayer gameLayer = this.initializeLayer(GAME_LAYER, getGameWidth(), getGameHeight());
+        for(int x = 0; x < gameLayer.getWidth(); x++) {
+            for(int y = 0; y < gameLayer.getHeight(); y++) {
                 TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell();
                 cell.setTile(this.initializeTile(GRASS));
                 gameLayer.setCell(x, y, cell);
             }
         }
-        this.initializeLayer(SNAKE_LAYER, 10, 10);
-        this.initializeLayer(FOOD_LAYER, 10, 10);
+        this.initializeLayer(SNAKE_LAYER, getGameWidth(), getGameHeight());
+        this.initializeLayer(FOOD_LAYER, getGameWidth(), getGameHeight());
     }
 
     private TiledMapTileLayer getLayer(LayerName layerName) {
@@ -175,6 +177,18 @@ public class SnakeGameScreen implements Screen {
     private void removeTile(LayerName layerName, int x, int y) {
         Optional.ofNullable(getLayer(layerName).getCell(x, y))
                 .ifPresent(cell -> cell.setTile(null));
+    }
+
+    private int getGameWidth() {
+        return getSettings().mapSettings.mapWidth;
+    }
+
+    private int getGameHeight() {
+        return getSettings().mapSettings.mapHeight;
+    }
+
+    private GameSettings getSettings() {
+        return SnakeGameProcessor.getSettings(gameRunner);
     }
 
     @Override

@@ -1,4 +1,4 @@
-package com.kagire.entity.settings;
+package com.kagire.entity.game;
 
 public class GameSettings {
 

@@ -5,13 +5,16 @@ import com.kagire.entity.Coordinates2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 public class FoodProcessor {
 
-    private static Random random;
+    private static final Random random;
+    private static final List<Class<? extends Food>> availableFoodPool;
 
     static {
         random = new Random();
+        availableFoodPool = List.of(Apple.class, Eggplant.class);
     }
 
     public static Coordinates2D randomAvailableCoordinate(List<Coordinates2D> availableCoordinates, Class<? extends Food> foodReference) {
@@ -42,8 +45,34 @@ public class FoodProcessor {
         }
     }
 
-    // TODO: optimize & beautify
-    public static Food randomFood(int x, int y) {
-        return random.nextInt(2) == 1 ? new Apple(x, y) : new Eggplant(x, y);
+    public static Food randomAvailableFood(List<Coordinates2D> availableCoordinates) {
+        var exclusions = new ArrayList<Class<? extends Food>>();
+        for (var i = 0; i < availableFoodPool.size(); i++) {
+            var food = randomFood(exclusions);
+            var coordinates = randomAvailableCoordinate(availableCoordinates, food);
+            if (coordinates != null) return generateFood(coordinates, food);
+            else exclusions.add(food);
+        }
+        return null;
+    }
+
+    public static Class<? extends Food> randomFood(List<Class<? extends Food>> exclusions) {
+        var foodPool = foodPool(exclusions);
+        return foodPool.get(random.nextInt(foodPool.size()));
+    }
+
+    private static List<Class<? extends Food>> foodPool(List<Class<? extends Food>> exclusions) {
+        return availableFoodPool.stream()
+                .filter(f -> exclusions.stream().noneMatch(ef -> ef == f))
+                .collect(Collectors.toList());
+    }
+
+    private static Food generateFood(Coordinates2D coordinates, Class<? extends Food> foodReference) {
+        try {
+            return foodReference.getDeclaredConstructor(int.class, int.class).newInstance(coordinates.x(), coordinates.y());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

@@ -1,16 +1,13 @@
-package com.kagire.game;
+package com.kagire.app;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.maps.tiled.TiledMap;
-import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -18,26 +15,23 @@ import com.kagire.entity.Coordinates2D;
 import com.kagire.entity.enumeration.Direction;
 import com.kagire.entity.enumeration.LayerName;
 import com.kagire.entity.enumeration.TileType;
-import com.kagire.entity.food.Apple;
 import com.kagire.entity.food.Food;
 import com.kagire.entity.food.FoodProcessor;
-import com.kagire.entity.settings.GameSettings;
+import com.kagire.entity.game.GameSettings;
 import com.kagire.entity.snake.Snake;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 import static com.kagire.entity.enumeration.LayerName.*;
-import static com.kagire.entity.enumeration.TileType.*;
+import static com.kagire.entity.enumeration.TileType.GRASS;
+import static com.kagire.entity.enumeration.TileType.SNAKE;
 
 public class SnakeGameScreen implements Screen {
 
     private final Game gameRunner;
+    private final SnakeGameProcessor gameProcessor;
 
     private TiledMap map;
-    private final GraphicsTray graphicsTray;
     private final OrthogonalTiledMapRenderer renderer;
     private final OrthographicCamera camera;
     private final Viewport viewport;
@@ -56,21 +50,22 @@ public class SnakeGameScreen implements Screen {
 
     public SnakeGameScreen(Game gameRunner) {
         this.gameRunner = gameRunner;
+        this.gameProcessor = new SnakeGameProcessor();
+
         this.camera = new OrthographicCamera();
         this.camera.setToOrtho(false, getGameWidth(), getGameHeight());
         this.viewport = new FitViewport(getGameWidth(), getGameHeight(), camera);
 
-        this.graphicsTray = new GraphicsTray();
         this.initializeTileMap();
         this.renderer = new OrthogonalTiledMapRenderer(map, 1 / 16f);
         this.renderer.setView(camera);
 
         this.snake = new Snake(0, 0);
-        this.unoccupiedCoordinates = SnakeGameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER));
-        var foodCoordinates = FoodProcessor.randomAvailableCoordinate(unoccupiedCoordinates, Apple.class);
-        if (foodCoordinates != null) {
-            this.food = FoodProcessor.randomFood(foodCoordinates.x(), foodCoordinates.y());
-            this.addTile(APPLE, FOOD_LAYER, foodCoordinates.x(), foodCoordinates.y());
+        this.unoccupiedCoordinates = this.gameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER));
+        var possibleFood =  FoodProcessor.randomAvailableFood(unoccupiedCoordinates);
+        if (possibleFood != null) {
+            this.food = possibleFood;
+            this.renderFood();
         }
         this.addTile(SNAKE, SNAKE_LAYER, snake.getHeadCell().getX(), snake.getHeadCell().getX());
     }
@@ -123,14 +118,13 @@ public class SnakeGameScreen implements Screen {
 
     private void moveFood() {
         food.coordinates.forEach(coordinate -> removeTile(FOOD_LAYER, coordinate.x(), coordinate.y()));
-        unoccupiedCoordinates = SnakeGameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER), unoccupiedCoordinates);
-        var foodCoordinates = FoodProcessor.randomAvailableCoordinate(unoccupiedCoordinates, Apple.class);
-        if (!unoccupiedCoordinates.isEmpty() && foodCoordinates != null) {
-            food = FoodProcessor.randomFood(foodCoordinates.x(), foodCoordinates.y());
-            addTile(APPLE, FOOD_LAYER, foodCoordinates.x(), foodCoordinates.y());
+        unoccupiedCoordinates = gameProcessor.getUnoccupiedCoordinates(snake, getLayer(SNAKE_LAYER), unoccupiedCoordinates);
+        var possibleFood = FoodProcessor.randomAvailableFood(unoccupiedCoordinates);
+        if (!unoccupiedCoordinates.isEmpty() && possibleFood != null) {
+            food = possibleFood;
+            renderFood();
         } else {
-            // TODO: endgame
-            System.out.println("endgame");
+            endgame();
         }
         addTile(SNAKE, SNAKE_LAYER, snake.getHeadCell().getX(), snake.getHeadCell().getY());
     }
@@ -142,7 +136,7 @@ public class SnakeGameScreen implements Screen {
         for(int x = 0; x < gameLayer.getWidth(); x++) {
             for(int y = 0; y < gameLayer.getHeight(); y++) {
                 TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell();
-                cell.setTile(this.initializeTile(GRASS));
+                cell.setTile(gameProcessor.initializeTile(GAME_LAYER, GRASS));
                 gameLayer.setCell(x, y, cell);
             }
         }
@@ -161,22 +155,33 @@ public class SnakeGameScreen implements Screen {
         return layer;
     }
 
-    private TiledMapTile initializeTile(TileType tileType) {
-        return new StaticTiledMapTile(new TextureRegion(this.graphicsTray.getTileTexture(tileType)));
-    }
-
     private void addTile(TileType tileType, LayerName layerName, int x, int y) {
         var layer = getLayer(layerName);
-        TiledMapTileLayer.Cell snakeCell = new TiledMapTileLayer.Cell();
-        snakeCell.setTile(initializeTile(tileType));
+        TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell();
+        cell.setTile(gameProcessor.initializeTile(layerName, tileType));
         if (x <= layer.getWidth() && y <= layer.getHeight()) {
-            layer.setCell(x, y, snakeCell);
+            layer.setCell(x, y, cell);
         }
     }
 
     private void removeTile(LayerName layerName, int x, int y) {
         Optional.ofNullable(getLayer(layerName).getCell(x, y))
                 .ifPresent(cell -> cell.setTile(null));
+    }
+
+    public void renderFood() {
+        var layer = getLayer(FOOD_LAYER);
+        var maxYOffset = food.occupiedPlace.stream().max(Comparator.comparing(Coordinates2D::y)).orElseThrow();
+        for (var i = 0; i <  food.coordinates.size(); i++) {
+            var coordinates = food.coordinates.get(i);
+            var xOffset = i == 0 ? 0 : coordinates.x() - food.coordinates.get(i - 1).x();
+            var yOffset = i == 0 ? 0 : coordinates.y() - food.coordinates.get(i - 1).y();
+            TiledMapTileLayer.Cell foodCell = new TiledMapTileLayer.Cell();
+            foodCell.setTile(gameProcessor.initializeTile(FOOD_LAYER, food.tileType(), xOffset * 16, (maxYOffset.y() - yOffset) * 16, 16, 16));
+            if (coordinates.x() <= layer.getWidth() && coordinates.y() <= layer.getHeight()) {
+                layer.setCell(coordinates.x(), coordinates.y(), foodCell);
+            }
+        }
     }
 
     private int getGameWidth() {
@@ -188,7 +193,12 @@ public class SnakeGameScreen implements Screen {
     }
 
     private GameSettings getSettings() {
-        return SnakeGameProcessor.getSettings(gameRunner);
+        return gameProcessor.getSettings(gameRunner);
+    }
+
+    //TODO: endgame
+    private void endgame() {
+        System.out.println("endgame");
     }
 
     @Override

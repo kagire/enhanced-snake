@@ -1,6 +1,7 @@
 package com.kagire.entity.food;
 
 import com.kagire.entity.Coordinates2D;
+import com.kagire.entity.enumeration.TileType;
 
 import java.util.List;
 
@@ -20,5 +21,10 @@ public class Apple extends Food {
     @Override
     protected List<Coordinates2D> initOccupiedPlace() {
         return List.of(Coordinates2D.of(0, 0));
+    }
+
+    @Override
+    protected TileType initTileType() {
+        return TileType.APPLE;
     }
 }

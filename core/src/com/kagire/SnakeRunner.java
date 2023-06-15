@@ -1,8 +1,8 @@
 package com.kagire;
 
 import com.badlogic.gdx.Game;
-import com.kagire.entity.settings.GameSettings;
-import com.kagire.game.SnakeGameScreen;
+import com.kagire.app.SnakeGameScreen;
+import com.kagire.entity.game.GameSettings;
 
 public class SnakeRunner extends Game {
 
